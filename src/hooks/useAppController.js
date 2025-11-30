@@ -67,15 +67,22 @@ export default function useAppController() {
             
             setIsLoading(false); 
             
+            // --- PERUBAHAN DI SINI: PENGATURAN TANGGAL AWAL ---
             const storedEndDate = localStorage.getItem('electionEndDate');
+            
             if (storedEndDate) {
+                // Gunakan tanggal yang tersimpan di localStorage
                 setElectionEndDate(new Date(storedEndDate));
             } else {
+                // Jika tidak ada, tetapkan tanggal default (30 hari dari sekarang)
                 const defaultDate = new Date();
                 defaultDate.setDate(defaultDate.getDate() + 30);
+                
+                // Set state dan langsung simpan ke localStorage agar konsisten
                 setElectionEndDate(defaultDate);
-                localStorage.setItem('electionEndDate', defaultDate.toISOString());
+                localStorage.setItem('electionEndDate', defaultDate.toISOString()); 
             }
+            // --------------------------------------------------
         };
 
         initApp();
@@ -226,11 +233,22 @@ export default function useAppController() {
   // HANDLERS DATA & LOGIKA
   // ----------------------------
   
+    // FUNGSI UNTUK MENGATUR TANGGAL BERAKHIR PEMILIHAN
     const handleSetEndDate = (newDate) => {
+        // newDate sudah berupa string ISO dari modal HomePage
         const dateObj = new Date(newDate);
+        
+        // 1. Update State Lokal (Agar CountdownTimer langsung refresh)
         setElectionEndDate(dateObj);
+        
+        // 2. Simpan secara permanen di browser (localStorage)
         localStorage.setItem('electionEndDate', dateObj.toISOString());
-        showAlert(`Batas waktu pemilihan berhasil diatur ke ${dateObj.toLocaleString()}.`, 'success', 'Pengaturan Sukses');
+        
+        // 3. Tampilkan notifikasi sukses
+        showAlert(`Batas waktu pemilihan berhasil diatur ke ${dateObj.toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' })}.`, 'success', 'Pengaturan Sukses');
+        
+        // Opsional: Untuk force re-render, kita bisa memuat ulang seluruh halaman, 
+        // tapi sebaiknya dihindari. Re-render harusnya otomatis karena state electionEndDate diubah.
     };
     
     // Logika Vote (Internal)
@@ -244,7 +262,10 @@ export default function useAppController() {
             setCandidates(data);
             setActiveTab("voting");
             setSelectedCandidateId(null);
-            showAlert("Suara Anda berhasil direkam!", 'success', 'Vote Sukses');
+            
+            // --- [MODIFIKASI] Ubah pesan notifikasi di sini ---
+            showAlert("Anda sudah mencoblos", 'success', 'Berhasil');
+            
         } catch (err) {
             console.error("Vote Error:", err);
             showAlert(`Gagal memberikan suara: ${err.message || 'Error tidak diketahui'}`, 'error', 'Error Vote');

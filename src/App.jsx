@@ -73,6 +73,7 @@ export default function App() {
   // --- LOGIKA DETAIL BERITA ---
 
   const handleViewNewsDetail = (newsItem) => {
+    // Saat item berita diklik, set state selectedNews
     setSelectedNews(newsItem);
   };
 
@@ -145,6 +146,8 @@ export default function App() {
                 userVoteStatus={userVoteStatus}
                 setActiveTab={setActiveTab}
                 news={news}
+                // TAMBAH: Teruskan handler untuk melihat detail berita
+                onViewNewsDetail={handleViewNewsDetail}
               />
             )}
 

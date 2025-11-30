@@ -27,44 +27,34 @@ const formatDateAndTime = (isoString) => {
 
 // Komponen Modal Edit Waktu (Admin)
 const EditTimeModal = ({ endDate, onClose, onSave }) => {
-    // Memecah endDate menjadi bagian tanggal dan waktu saat inisialisasi
     const initialParts = formatDateAndTime(endDate);
     
-    // PERUBAHAN UTAMA: Menggunakan state terpisah untuk tanggal dan waktu
     const [datePart, setDatePart] = useState(initialParts.datePart); // YYYY-MM-DD
     const [timePart, setTimePart] = useState(initialParts.timePart); // HH:MM
-    const [error, setError] = useState(null); // State untuk pesan error
+    const [error, setError] = useState(null); 
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        setError(null); // Reset error
+        setError(null); 
         
-        // 1. Validasi Input Kosong
         if (!datePart || !timePart) {
             setError("Tanggal dan waktu tidak boleh kosong.");
             return;
         }
 
-        // 2. Menggabungkan tanggal dan waktu dari input terpisah
-        // Format YYYY-MM-DDTHH:MM:00 (digunakan oleh Date object)
         const combinedDatetime = `${datePart}T${timePart}:00`; 
         const finalDate = new Date(combinedDatetime);
 
         if (isNaN(finalDate.getTime())) {
             setError("Format tanggal atau waktu tidak valid.");
-            console.error("VALIDATION ERROR: Tanggal atau waktu tidak valid.");
             return;
         }
 
-        // 3. Validasi Waktu Harus Masa Depan
-        // Membandingkan waktu gabungan dengan waktu saat ini
         if (finalDate <= new Date()) {
             setError("Batas waktu harus di masa depan. Silakan pilih tanggal dan waktu setelah saat ini.");
-            console.error("VALIDATION ERROR: Batas waktu harus di masa depan.");
             return;
         }
         
-        // Menyimpan dalam format ISOString penuh untuk konsistensi di luar komponen
         onSave(finalDate.toISOString()); 
         onClose();
     };
@@ -86,7 +76,6 @@ const EditTimeModal = ({ endDate, onClose, onSave }) => {
                         </div>
                     )}
                     
-                    {/* INPUT TANGGAL TERPISAH */}
                     <div>
                         <label className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-2">
                             <Calendar size={14}/> Tentukan Tanggal
@@ -100,7 +89,6 @@ const EditTimeModal = ({ endDate, onClose, onSave }) => {
                         />
                     </div>
 
-                    {/* INPUT WAKTU TERPISAH */}
                     <div>
                         <label className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-2">
                              <Clock size={14}/> Tentukan Waktu
@@ -124,8 +112,7 @@ const EditTimeModal = ({ endDate, onClose, onSave }) => {
 };
 
 
-// Tambahkan props handleSetEndDate di destructuring props HomePage
-const HomePage = ({ role, userVoteStatus, setActiveTab, news, electionEndDate, handleSetEndDate }) => {
+const HomePage = ({ role, userVoteStatus, setActiveTab, news, electionEndDate, handleSetEndDate, onViewNewsDetail }) => {
     const [showEditModal, setShowEditModal] = useState(false);
     
     // Cek apakah pemilihan sudah selesai
@@ -155,7 +142,7 @@ const HomePage = ({ role, userVoteStatus, setActiveTab, news, electionEndDate, h
               </p>
             </div>
             
-            {/* Countdown Card (Menggunakan Komponen Timer) */}
+            {/* Countdown Card */}
             <div className="bg-slate-800/80 backdrop-blur border border-slate-700 p-5 rounded-2xl mb-8 relative z-10">
                <CountdownTimer targetDate={electionEndDate} />
             </div>
@@ -169,12 +156,15 @@ const HomePage = ({ role, userVoteStatus, setActiveTab, news, electionEndDate, h
                 <BarChart2 size={20} /> LIHAT HASIL
               </button>
             ) : (
-              <button
-                onClick={() => setActiveTab('candidates')}
-                className="w-full bg-amber-500 text-slate-900 py-4 rounded-full font-bold shadow-xl shadow-amber-500/20 hover:bg-amber-400 transition flex items-center justify-center gap-3 relative z-10 border-2 border-amber-400/50"
-              >
-                <Vote size={20} /> MULAI MEMILIH SEKARANG
-              </button>
+              // MODIFIKASI DI SINI: Tombol hanya muncul jika user BUKAN tamu (guest)
+              role !== 'guest' && (
+                  <button
+                    onClick={() => setActiveTab('candidates')}
+                    className="w-full bg-amber-500 text-slate-900 py-4 rounded-full font-bold shadow-xl shadow-amber-500/20 hover:bg-amber-400 transition flex items-center justify-center gap-3 relative z-10 border-2 border-amber-400/50"
+                  >
+                    <Vote size={20} /> MULAI MEMILIH SEKARANG
+                  </button>
+              )
             )}
         </div>
         
@@ -195,7 +185,8 @@ const HomePage = ({ role, userVoteStatus, setActiveTab, news, electionEndDate, h
             {news.slice(0, 2).map(n => (
               <div 
                 key={n.id} 
-                className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-4 items-center"
+                onClick={() => onViewNewsDetail(n)} 
+                className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-4 items-center cursor-pointer transition-shadow duration-300 hover:shadow-lg"
               >
                  <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-slate-800 border border-slate-100">
                    <Newspaper size={20}/>
