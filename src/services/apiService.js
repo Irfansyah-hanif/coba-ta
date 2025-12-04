@@ -1,8 +1,4 @@
-// coblos-aku\src\services\apiService.js
 import { supabase } from '../config/supabaseClient';
-
-// Nama bucket Supabase Storage Anda (Menggunakan konstanta)
-const CANDIDATE_PHOTO_BUCKET = 'candidate_photos';
 
 export class ApiService {
   constructor(userId) {
@@ -17,43 +13,52 @@ export class ApiService {
    */
   async uploadCandidatePhoto(file, candidateName) {
     if (!file) {
-      console.warn("No file provided for upload.");
+      console.warn("API: Tidak ada file yang dipilih untuk upload.");
       return null;
     }
 
-    // Membuat nama file yang unik dan aman
+    // 1. Persiapan Nama File
+    // Bersihkan nama kandidat: hapus spasi, ganti dengan underscore, hapus karakter spesial
+    const cleanName = candidateName.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
     const fileExt = file.name.split('.').pop();
-    const safeName = candidateName.replace(/\s/g, '_').toLowerCase();
-    const fileName = `${safeName}-${Date.now()}.${fileExt}`;
-    const filePath = `candidates/${fileName}`; // Path di dalam bucket
+    const fileName = `${cleanName}-${Date.now()}.${fileExt}`;
+    const filePath = `candidates/${fileName}`; // Path: folder/namafile
+
+    console.log(`API: Mencoba upload ke bucket 'candidate_photos' dengan path: ${filePath}`);
 
     try {
-      // 1. Upload file ke Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from(CANDIDATE_PHOTO_BUCKET) // Menggunakan konstanta
+      // 2. Upload file ke Supabase Storage
+      // PENTING: Nama bucket ditulis langsung 'candidate_photos' (huruf kecil)
+      const { data, error: uploadError } = await supabase.storage
+        .from('candidate_photos') 
         .upload(filePath, file, {
           cacheControl: '3600',
-          upsert: false // Jangan menimpa
+          upsert: false
         });
 
       if (uploadError) {
-        console.error("Supabase Storage Upload Error:", uploadError);
+        console.error("Gagal Upload ke Storage:", uploadError);
+        // Menampilkan pesan spesifik jika error karena hak akses
+        if (uploadError.statusCode === '403' || uploadError.error === 'Unauthorized') {
+             throw new Error("Akses ditolak. Pastikan Anda sudah LOGIN atau Policy Storage sudah benar.");
+        }
         throw uploadError;
       }
 
-      // 2. Mendapatkan URL publik dari file yang diunggah
+      // 3. Mendapatkan URL publik dari file yang diunggah
       const { data: publicUrlData } = supabase.storage
-        .from(CANDIDATE_PHOTO_BUCKET) // Menggunakan konstanta
+        .from('candidate_photos')
         .getPublicUrl(filePath);
 
       if (!publicUrlData || !publicUrlData.publicUrl) {
-        throw new Error("Gagal mendapatkan URL publik setelah upload.");
+        throw new Error("File terupload, tapi gagal mendapatkan URL publik.");
       }
 
+      console.log("API: Upload berhasil, URL:", publicUrlData.publicUrl);
       return publicUrlData.publicUrl;
 
     } catch (error) {
-      console.error("Supabase Storage Upload Error:", error);
+      console.error("API Error uploadCandidatePhoto:", error);
       throw new Error(`Gagal mengunggah foto: ${error.message || error}`);
     }
   }
@@ -65,7 +70,7 @@ export class ApiService {
     const { data, error } = await supabase
       .from('candidates')
       .select('*')
-      .order('number', { ascending: true }); // Diurutkan berdasarkan nomor urut
+      .order('number', { ascending: true });
       
     if (error) {
       console.error("Error getCandidates:", error);
@@ -74,26 +79,20 @@ export class ApiService {
     return { data };
   }
   
-  /**
-   * Menambahkan kandidat baru ke tabel 'candidates'.
-   */
   async addCandidate(candidateData) {
-    console.log("API: Menambahkan kandidat baru...");
+    console.log("API: Menambahkan kandidat baru ke database...");
     const { data, error } = await supabase
       .from('candidates')
       .insert([candidateData])
       .select();
 
     if (error) {
-      console.error("Error addCandidate:", error);
+      console.error("Error addCandidate (DB):", error);
       throw error;
     }
     return { data };
   }
 
-  /**
-   * Memperbarui data kandidat yang ada.
-   */
   async updateCandidate(id, updates) {
     console.log(`API: Memperbarui kandidat ID ${id}...`);
     const { data, error } = await supabase
@@ -123,47 +122,46 @@ export class ApiService {
     return true;
   }
 
-  // --- VOTING (Logika Penting) ---
+  // --- VOTING ---
   
   async getUserVotingStatus() {
     if (!this.userId) return { hasVoted: false, candidateId: null };
     
     console.log(`API: Cek status voting untuk user ${this.userId}...`);
+    
     const { data, error } = await supabase
       .from('votes')
       .select('candidate_id')
       .eq('user_id', this.userId)
-      .maybeSingle(); 
+      .limit(1)
+      .single(); 
     
     if (error) {
-        // Jangan throw error jika hanya 'no rows found'
-        if (error.code !== 'PGRST116') console.error("Error getUserVotingStatus:", error);
+       if (error.code !== 'PGRST116' && error.code !== '204') {
+           console.error("Error getUserVotingStatus:", error);
+       } else {
+           // Data tidak ditemukan, user belum voting
+           return { hasVoted: false, candidateId: null };
+       }
     }
 
     if (data) {
-        return { hasVoted: true, candidateId: data.candidate_id };
+       return { hasVoted: true, candidateId: data.candidate_id };
     }
     return { hasVoted: false, candidateId: null };
   }
 
   async castVote(candidateId, userRole) {
     console.log(`API: Melakukan vote untuk user ${this.userId} pada kandidat ${candidateId}...`);
-    if (userRole !== 'voter' && userRole !== 'admin') { // Admin juga bisa vote untuk pengujian, tapi sebaiknya hanya voter
+    if (userRole !== 'voter' && userRole !== 'admin') {
         throw new Error("Akses ditolak. Hanya Pemilih yang sah.");
     }
 
-    // 1. Cek apakah user sudah pernah vote
-    const { data: existingVote } = await supabase
-      .from('votes')
-      .select('id')
-      .eq('user_id', this.userId)
-      .single(); 
-
-    if (existingVote) {
-      throw new Error("Anda sudah menggunakan hak suara!");
+    const status = await this.getUserVotingStatus();
+    if (status.hasVoted) {
+        throw new Error("Anda sudah menggunakan hak suara!");
     }
 
-    // 2. Masukkan data ke tabel votes
     const { error: insertError } = await supabase
       .from('votes')
       .insert([{ user_id: this.userId, candidate_id: candidateId, role: userRole }]);
@@ -173,13 +171,14 @@ export class ApiService {
         throw insertError;
     }
 
-    // 3. Increment (Tambah 1) jumlah suara kandidat menggunakan RPC
-    const { error: updateError } = await supabase.rpc('increment_vote', { row_id: candidateId });
+    // Menggunakan RPC untuk increment
+    const { error: updateError } = await supabase.rpc('increment_vote', { 
+        row_id: candidateId 
+    });
     
     if (updateError) {
         console.warn("Warning: RPC 'increment_vote' failed. Falling back to manual update.", updateError);
         
-        // FALLBACK MANUAL (Hati-hati terhadap race condition)
         try {
             const { data: current, error: fetchError } = await supabase
                 .from('candidates')
@@ -200,8 +199,7 @@ export class ApiService {
             
         } catch (manualError) {
              console.error("Critical Error: Fallback manual update also failed.", manualError);
-             // Jika kedua cara gagal, lempar error yang lebih jelas
-             throw new Error(`Gagal memperbarui hitungan suara, vote mungkin telah dicatat: ${manualError.message}`);
+             throw new Error(`Gagal memperbarui hitungan suara: ${manualError.message}`);
         }
     }
     
@@ -214,7 +212,7 @@ export class ApiService {
     const { data, error } = await supabase
       .from('news')
       .select('*')
-      .order('created_at', { ascending: false }); // Urutkan berdasarkan created_at
+      .order('created_at', { ascending: false });
 
     if (error) {
         console.error("Error getNews:", error);
@@ -237,9 +235,6 @@ export class ApiService {
     return { data };
   }
   
-  /**
-   * Memperbarui data berita yang ada.
-   */
   async updateNews(id, updates) {
     console.log(`API: Memperbarui berita ID ${id}...`);
     const { data, error } = await supabase
@@ -255,9 +250,6 @@ export class ApiService {
     return { data };
   }
   
-  /**
-   * Menghapus berita berdasarkan ID.
-   */
   async deleteNews(id) {
     console.log(`API: Menghapus berita ID ${id}...`);
     const { error } = await supabase
