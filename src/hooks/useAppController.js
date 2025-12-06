@@ -105,6 +105,8 @@ export default function useAppController() {
               const apiInstance = new ApiService(userData.id);
               setApi(apiInstance);
           } else {
+              // Reset state saat auth state berubah menjadi null (logout)
+              // Ini backup jika handleLogout manual tidak cukup
               setUser(null);
               setRole(null);
               setApi(null);
@@ -223,7 +225,6 @@ export default function useAppController() {
         }
     };
 
-    // FITUR: Update Profile (Nickname)
     const handleUpdateProfile = async (fullName) => {
         if (!fullName.trim()) {
             showAlert("Nama tidak boleh kosong.", 'error', 'Validasi Gagal');
@@ -238,7 +239,6 @@ export default function useAppController() {
 
             if (error) throw error;
 
-            // Update local state user agar UI langsung berubah
             setUser(data.user);
             
             showAlert("Profil berhasil diperbarui!", 'success', 'Sukses');
@@ -255,18 +255,31 @@ export default function useAppController() {
         setActiveTab("home");
     };
 
+    // --- MODIFIKASI: FUNGSI LOGOUT YANG LEBIH AMAN ---
     const handleLogout = async () => {
-        if (user && role !== 'guest') {
-            await supabase.auth.signOut();
-            localStorage.setItem('activeTab', 'home'); 
-            setActiveTab('home');
-            showAlert("Berhasil keluar.", 'success', 'Logout');
-        } else {
-            setRole(null);
-            localStorage.setItem('activeTab', 'home');
-            setActiveTab("home");
+        // 1. Coba logout ke server Supabase (dibungkus try-catch agar tidak memblokir UI jika error)
+        try {
+            if (user && role !== 'guest') {
+                await supabase.auth.signOut();
+            }
+        } catch (err) {
+            console.warn("Logout server warning:", err);
         }
+
+        // 2. FORCE RESET STATE (WAJIB DILAKUKAN)
+        // Ini memastikan UI langsung kembali ke Login, terlepas dari respon server
+        setUser(null);
+        setRole(null);
+        setApi(null);
+        
+        // Reset penyimpanan lokal
+        localStorage.setItem('activeTab', 'home');
+        setActiveTab("home");
+        
+        // Tampilkan notifikasi
+        showAlert("Berhasil keluar.", 'success', 'Logout');
     };
+    // ------------------------------------------------
 
     const handleSetEndDate = (newDate) => {
         const dateObj = new Date(newDate);
@@ -468,7 +481,7 @@ export default function useAppController() {
     handleVote, handleAddCandidate, handleEditCandidate, handleDeleteCandidate, 
     handleAddNews, handleEditNews, handleDeleteNews, 
     handleSetEndDate, handleResetElection, 
-    handleUpdateProfile, // Export fungsi baru
+    handleUpdateProfile,
     modalState, closeModal,
   };
 }
