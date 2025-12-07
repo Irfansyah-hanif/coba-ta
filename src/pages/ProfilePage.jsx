@@ -13,17 +13,28 @@ const ProfilePage = ({ user, role, onLogout, onUpdateProfile }) => {
 
   useEffect(() => {
     const handler = (e) => {
-      e.preventDefault();
+      // -----------------------------------------------------------------------
+      // MODIFIKASI: Baris di bawah ini dikomentari agar popup otomatis browser MUNCUL.
+      // Jika Anda ingin memblokir popup otomatis dan hanya mengandalkan tombol, 
+      // hapus tanda komentar (//) pada baris e.preventDefault()
+      // -----------------------------------------------------------------------
+      // e.preventDefault(); 
+      
+      // Simpan event agar tombol "Install Aplikasi" di bawah tetap bisa digunakan
       setDeferredPrompt(e);
     };
+
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
+    // Tampilkan prompt instalasi secara manual
     deferredPrompt.prompt();
+    // Tunggu respon pengguna
     const { outcome } = await deferredPrompt.userChoice;
+    // Reset variabel jika sudah diinstal/ditolak
     if (outcome === 'accepted') {
       setDeferredPrompt(null);
     }
@@ -105,6 +116,7 @@ const ProfilePage = ({ user, role, onLogout, onUpdateProfile }) => {
          </div>
       </div>
 
+      {/* Tombol Install (Hanya muncul jika browser mendukung PWA install prompt) */}
       {deferredPrompt && (
           <button 
             onClick={handleInstallClick} 
