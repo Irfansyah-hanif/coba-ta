@@ -484,4 +484,4 @@ export default function useAppController() {
     handleUpdateProfile,
     modalState, closeModal,
   };
-}
+} 
